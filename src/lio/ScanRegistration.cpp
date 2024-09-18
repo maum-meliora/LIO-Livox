@@ -18,7 +18,6 @@ bool Feature_Mode = false;
 bool Use_seg = false;
 
 void lidarCallBackHorizon(const livox_ros_driver2::CustomMsgConstPtr &msg) {
-
   sensor_msgs::PointCloud2 msg2;
 
   if(Use_seg){
@@ -28,16 +27,27 @@ void lidarCallBackHorizon(const livox_ros_driver2::CustomMsgConstPtr &msg) {
     lidarFeatureExtractor->FeatureExtract(msg, laserCloud, laserConerCloud, laserSurfCloud,N_SCANS,Lidar_Type);
   } 
 
+  std_msgs::Header common_header = msg->header;
+  common_header.stamp.fromNSec(msg->timebase + msg->points.back().offset_time);
   sensor_msgs::PointCloud2 laserCloudMsg;
+  sensor_msgs::PointCloud2 laserSharpCloudMsg;
+  sensor_msgs::PointCloud2 laserFlatCloudMsg;
+  sensor_msgs::PointCloud2 laserNonFeatureCloudMsg;
   pcl::toROSMsg(*laserCloud, laserCloudMsg);
-  laserCloudMsg.header = msg->header;
-  laserCloudMsg.header.stamp.fromNSec(msg->timebase+msg->points.back().offset_time);
+  pcl::toROSMsg(*laserConerCloud, laserSharpCloudMsg);
+  pcl::toROSMsg(*laserSurfCloud, laserFlatCloudMsg);
+  pcl::toROSMsg(*laserNonFeatureCloud, laserNonFeatureCloudMsg);
+  laserCloudMsg.header = common_header;
+  laserSharpCloudMsg.header = common_header;
+  laserFlatCloudMsg.header = common_header;
+  laserNonFeatureCloudMsg.header = common_header;
   pubFullLaserCloud.publish(laserCloudMsg);
-
+  pubSharpCloud.publish(laserSharpCloudMsg);
+  pubFlatCloud.publish(laserFlatCloudMsg);
+  pubNonFeature.publish(laserNonFeatureCloudMsg);
 }
 
 void lidarCallBackHAP(const livox_ros_driver2::CustomMsgConstPtr &msg) {
-
   sensor_msgs::PointCloud2 msg2;
 
   if(Use_seg){
@@ -47,52 +57,76 @@ void lidarCallBackHAP(const livox_ros_driver2::CustomMsgConstPtr &msg) {
     lidarFeatureExtractor->FeatureExtract_hap(msg, laserCloud, laserConerCloud, laserSurfCloud, laserNonFeatureCloud, N_SCANS);
   } 
 
+  std_msgs::Header common_header = msg->header;
+  common_header.stamp.fromNSec(msg->timebase + msg->points.back().offset_time);
   sensor_msgs::PointCloud2 laserCloudMsg;
+  sensor_msgs::PointCloud2 laserSharpCloudMsg;
+  sensor_msgs::PointCloud2 laserFlatCloudMsg;
+  sensor_msgs::PointCloud2 laserNonFeatureCloudMsg;
   pcl::toROSMsg(*laserCloud, laserCloudMsg);
-  laserCloudMsg.header = msg->header;
-  laserCloudMsg.header.stamp.fromNSec(msg->timebase+msg->points.back().offset_time);
+  pcl::toROSMsg(*laserConerCloud, laserSharpCloudMsg);
+  pcl::toROSMsg(*laserSurfCloud, laserFlatCloudMsg);
+  pcl::toROSMsg(*laserNonFeatureCloud, laserNonFeatureCloudMsg);
+  laserCloudMsg.header = common_header;
+  laserSharpCloudMsg.header = common_header;
+  laserFlatCloudMsg.header = common_header;
+  laserNonFeatureCloudMsg.header = common_header;
   pubFullLaserCloud.publish(laserCloudMsg);
-
+  pubSharpCloud.publish(laserSharpCloudMsg);
+  pubFlatCloud.publish(laserFlatCloudMsg);
+  pubNonFeature.publish(laserNonFeatureCloudMsg);
 }
 
 void lidarCallBackPc2(const sensor_msgs::PointCloud2ConstPtr &msg) {
-    pcl::PointCloud<pcl::PointXYZI>::Ptr laser_cloud(new pcl::PointCloud<pcl::PointXYZI>());
-    pcl::PointCloud<pcl::PointXYZINormal>::Ptr laser_cloud_custom(new pcl::PointCloud<pcl::PointXYZINormal>());
+  pcl::PointCloud<pcl::PointXYZI>::Ptr laser_cloud(new pcl::PointCloud<pcl::PointXYZI>());
+  pcl::PointCloud<pcl::PointXYZINormal>::Ptr laser_cloud_custom(new pcl::PointCloud<pcl::PointXYZINormal>());
 
-    pcl::fromROSMsg(*msg, *laser_cloud);
+  pcl::fromROSMsg(*msg, *laser_cloud);
 
-    for (uint64_t i = 0; i < laser_cloud->points.size(); i++)
+  for (uint64_t i = 0; i < laser_cloud->points.size(); i++)
+  {
+    auto p=laser_cloud->points.at(i);
+    pcl::PointXYZINormal p_custom;
+    if(Lidar_Type == 0||Lidar_Type == 1)
     {
-        auto p=laser_cloud->points.at(i);
-        pcl::PointXYZINormal p_custom;
-        if(Lidar_Type == 0||Lidar_Type == 1)
-        {
-            if(p.x < 0.01) continue;
-        }
-        else if(Lidar_Type == 2)
-        {
-            if(std::fabs(p.x) < 0.01) continue;
-        }
-        p_custom.x=p.x;
-        p_custom.y=p.y;
-        p_custom.z=p.z;
-        p_custom.intensity=p.intensity;
-        p_custom.normal_x=float (i)/float(laser_cloud->points.size());
-        p_custom.normal_y=i%4;
-        laser_cloud_custom->points.push_back(p_custom);
+        if(p.x < 0.01) continue;
     }
+    else if(Lidar_Type == 2)
+    {
+        if(std::fabs(p.x) < 0.01) continue;
+    }
+    p_custom.x=p.x;
+    p_custom.y=p.y;
+    p_custom.z=p.z;
+    p_custom.intensity=p.intensity;
+    p_custom.normal_x=float (i)/float(laser_cloud->points.size());
+    p_custom.normal_y=i%4;
+    laser_cloud_custom->points.push_back(p_custom);
+  }
 
-    lidarFeatureExtractor->FeatureExtract_Mid(laser_cloud_custom, laserConerCloud, laserSurfCloud);
+  lidarFeatureExtractor->FeatureExtract_Mid(laser_cloud_custom, laserConerCloud, laserSurfCloud);
 
-    sensor_msgs::PointCloud2 laserCloudMsg;
-    pcl::toROSMsg(*laser_cloud_custom, laserCloudMsg);
-    laserCloudMsg.header = msg->header;
-    pubFullLaserCloud.publish(laserCloudMsg);
-
+  std_msgs::Header common_header = msg->header;
+  common_header.stamp.fromNSec(msg->timebase + msg->points.back().offset_time);
+  sensor_msgs::PointCloud2 laserCloudMsg;
+  sensor_msgs::PointCloud2 laserSharpCloudMsg;
+  sensor_msgs::PointCloud2 laserFlatCloudMsg;
+  sensor_msgs::PointCloud2 laserNonFeatureCloudMsg;
+  pcl::toROSMsg(*laserCloud, laserCloudMsg);
+  pcl::toROSMsg(*laserConerCloud, laserSharpCloudMsg);
+  pcl::toROSMsg(*laserSurfCloud, laserFlatCloudMsg);
+  pcl::toROSMsg(*laserNonFeatureCloud, laserNonFeatureCloudMsg);
+  laserCloudMsg.header = common_header;
+  laserSharpCloudMsg.header = common_header;
+  laserFlatCloudMsg.header = common_header;
+  laserNonFeatureCloudMsg.header = common_header;
+  pubFullLaserCloud.publish(laserCloudMsg);
+  pubSharpCloud.publish(laserSharpCloudMsg);
+  pubFlatCloud.publish(laserFlatCloudMsg);
+  pubNonFeature.publish(laserNonFeatureCloudMsg);
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   ros::init(argc, argv, "ScanRegistration");
   ros::NodeHandle nodeHandler("~");
 
