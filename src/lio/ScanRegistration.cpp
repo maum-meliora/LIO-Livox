@@ -107,7 +107,6 @@ void lidarCallBackPc2(const sensor_msgs::PointCloud2ConstPtr &msg) {
   lidarFeatureExtractor->FeatureExtract_Mid(laser_cloud_custom, laserConerCloud, laserSurfCloud);
 
   std_msgs::Header common_header = msg->header;
-  common_header.stamp.fromNSec(msg->timebase + msg->points.back().offset_time);
   sensor_msgs::PointCloud2 laserCloudMsg;
   sensor_msgs::PointCloud2 laserSharpCloudMsg;
   sensor_msgs::PointCloud2 laserFlatCloudMsg;
